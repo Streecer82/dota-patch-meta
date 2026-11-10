@@ -1,0 +1,7 @@
+dota_patch_meta:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../data/dota.duckdb
+      threads: 4
