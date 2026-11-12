@@ -44,8 +44,8 @@ def get_json(path,params=None):
 
 
 if __name__ == "__main__":
-    heros = get_json("/constants/heroes")
-    print(f"Heros returned: {len(heros)}")
+    heroes = get_json("/constants/heroes")
+    print(f"Heroes returned: {len(heroes)}")
 
     page = get_json("/proMatches", params={"less_than_match_id": 8000000000})
     print(f"Matches on page: {len(page)}")
