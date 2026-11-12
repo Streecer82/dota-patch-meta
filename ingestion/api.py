@@ -10,7 +10,7 @@ import time
 import requests
 
 BASE_URL = "https://api.opendota.com/api"
-PAUSE_SECONDS = 1.0
+PAUSE_SECONDS = 2.0
 MAX_ATTEMPTS = 5
 FIRST_RETRY_WAIT_SECONDS = 5.0
 
