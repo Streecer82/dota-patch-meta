@@ -1,7 +1,7 @@
 """
 Calling the OpenDota API.
 
-Other ingestion scripts import get_json fro here, so every API call in the project goes through the same
+Other ingestion scripts import get_json from here, so every API call in the project goes through the same
 rate limiting and retries
 """
 
@@ -49,5 +49,3 @@ if __name__ == "__main__":
 
     page = get_json("/proMatches", params={"less_than_match_id": 8000000000})
     print(f"Matches on page: {len(page)}")
-
-    get_json("/this-does-not-exist")
