@@ -25,7 +25,7 @@ def find_resume_point(con):
             MIN(match ->> 'match_id')::bigint AS smallest_match_id,
             MIN(match ->> 'start_time')::bigint AS oldest_start_time
             FROM {RAW_SCHEMA}.{TABLE_NAME},
-            UNNEST(response::json[]) AS matchs(match)
+            UNNEST(response::json[]) AS matches(match)
             """).fetchone()
 
 
