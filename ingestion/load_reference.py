@@ -13,6 +13,7 @@ REFERENCE_ENDPOINTS = [
     ("heroes", "/constants/heroes"),
     ("patches", "/constants/patch"),
     ("items", "/constants/items"),
+    ("leagues", "/leagues"),
 ]
 
 
