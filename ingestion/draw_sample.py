@@ -36,10 +36,19 @@ patch_windows as (
                  timestamp '2100-01-01') as valid_to
     from patches
 ),
+leagues as (
+    select
+        (league ->> 'leagueid')::bigint as league_id,
+        league ->> 'tier'               as league_tier
+    from {RAW_SCHEMA}.leagues l,
+         unnest(response::json[]) as all_leagues(league)
+    qualify l.loaded_at = max(l.loaded_at) over ()
+),
 matches as (
     select distinct
         (match ->> 'match_id')::bigint                                    as match_id,
-        to_timestamp((match ->> 'start_time')::bigint) at time zone 'UTC' as match_started_utc
+        to_timestamp((match ->> 'start_time')::bigint) at time zone 'UTC' as match_started_utc,
+        (league ->> 'leagueid')::bigint                                       as league_id
     from {RAW_SCHEMA}.pro_matches,
          unnest(response::json[]) as page_matches(match)
 ),
@@ -49,6 +58,9 @@ matches_with_patch as (
     join patch_windows as pw
       on  m.match_started_utc >= pw.valid_from
       and m.match_started_utc <  pw.valid_to
+    join leagues as l
+      on  m.league_id = l.league_id
+    WHERE l.league_tier in ('professional', 'premium')
 )
 select
     match_id,
