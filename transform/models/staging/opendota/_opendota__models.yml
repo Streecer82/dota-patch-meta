@@ -1,0 +1,76 @@
+version: 2
+
+models:
+  - name: stg_opendota__patches
+    description: One row per patch, from the latest load of /constants/patch.
+    columns:
+      - name: patch_id
+        description: OpenDota's patch ID (e.g. 56 = 7.37).
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+
+  - name: stg_opendota__heroes
+    description: One row per hero, from the latest load of /constants/heroes.
+    columns:
+      - name: hero_id
+        description: OpenDota's hero ID (e.g. 3 = bane).
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+      - name: hero_internal_name
+        description: Game's internal name for the hero (e.g. "npc_dota_hero_bane").
+      - name: hero_name
+        description: Hero's display name (e.g. "Bane").
+        data_tests:
+          - not_null
+      - name: attack_type
+        description: Hero's attack type (e.g. Melee or Ranged).
+        data_tests:
+          - accepted_values:
+              values: ['Melee', 'Ranged']
+      - name: primary_attribute
+        description: Hero's primary attribute code
+        data_tests:
+          - accepted_values:
+              values: ['str', 'agi', 'int', 'all']
+
+  - name: stg_opendota__items
+    description: One row per item, from the latest load of /constants/items.
+    columns:
+      - name: item_id
+        description: OpenDota's item ID (e.g. 1 = Blink Dagger).
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+      - name: item_key
+        description: Game's internal name for an item
+        data_tests:
+          - unique
+          - not_null
+      - name: item_name
+        description: Game's display name for the item (A few items have no display name)
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+
+  - name: stg_opendota__leagues
+    description: One row per league, from the latest load of /leagues.
+    columns:
+      - name: league_id
+        description: OpenDota's league ID (e.g. 2 = Wild Cards West).
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+      - name: league_name
+        description: League's display name (e.g. Wild Cards West).
+      - name: league_tier
+        description: League's competition tier, contains null values for untiered leagues
+        data_tests:
+          - accepted_values:
+              values: ['amateur', 'professional', 'premium', 'excluded']
