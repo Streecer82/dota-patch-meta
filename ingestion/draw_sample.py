@@ -48,7 +48,7 @@ matches as (
     select distinct
         (match ->> 'match_id')::bigint                                    as match_id,
         to_timestamp((match ->> 'start_time')::bigint) at time zone 'UTC' as match_started_utc,
-        (league ->> 'leagueid')::bigint                                       as league_id
+        (match ->> 'leagueid')::bigint                                       as league_id
     from {RAW_SCHEMA}.pro_matches,
          unnest(response::json[]) as page_matches(match)
 ),
