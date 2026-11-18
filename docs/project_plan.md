@@ -31,7 +31,7 @@ Team-level and player-level questions are out of scope: sampling (section 2) lea
 | Match list | Every pro match since 2024-08-01, via `/proMatches` paging | Cheap: about 100 matches per call, so hundreds of calls in total |
 | Match details (history) | A fixed random sample per patch (size decided after counting matches per patch) | Detail is one call per match; the full history would take weeks on the free limit |
 | Match details (new matches) | Every match, collected daily | About 45 matches a day, well within the limit |
-| Leagues | Premium and professional tiers; a test on the match detail's `league.tier` flags any other tier | All 100 listed matches were professional tier, so no filtering is needed before fetching details |
+| Leagues | Premium and professional tiers only, filtered before sampling using `/leagues` | Of the first 3,628 sampled details, 1,260 were in `excluded`-tier leagues (lower-level play); amateur and excluded tiers are removed |
 
 Sampling rules:
 - Stratified by patch, so every patch gets the same number of matches regardless of how long it ran.
@@ -53,6 +53,7 @@ Free, no API key required. Free tier: about 60 requests per minute and 2,000 per
 | `/constants/patch` | Patch names, IDs and release dates | Patch dimension |
 | `/constants/items` | Every item, object keyed by internal name; each record includes its numeric `id` | Item dimension |
 | `/constants/item_ids` | Object keyed by item ID, mapping to internal name | Cross-check only |
+| `/leagues` | Every league with its tier (premium, professional, amateur, excluded) | Filtering the match list to premium and professional before sampling |
 | `/teams`, `/proPlayers` | Teams and players | Names only; not central to the questions |
 
 The `/explorer` endpoint (SQL against OpenDota's database) is deliberately not used.
@@ -75,6 +76,11 @@ The `/explorer` endpoint (SQL against OpenDota's database) is deliberately not u
 | League tier | `leagues.json` has `tier`: premium, professional, amateur, excluded. All 100 sampled matches were professional |
 | Timestamps | `start_time` is a Unix timestamp (UTC); model as a plain UTC timestamp named `start_at_utc` |
 | Patches in scope | 56 (7.37, 2024-08-01) to 60 (7.41, 2026-03-24, current) |
+| Match list (Stage 4) | Backfill reached the 7.37 cutoff. Matches listed per patch (before deduplication check): 7.37 16,499; 7.38 7,300; 7.39 17,867; 7.40 7,749; 7.41 9,146 (to 2026-11-12) |
+| Sample and details (Stage 5) | First draw (all tiers) loaded 3,628 details; 1,260 were in `excluded`-tier leagues, so the sample was redrawn from premium and professional matches only (D2), same seed 42. Every patch had over 1,000 eligible matches and no listed match had a league missing from `/leagues`. The redraw kept all 2,368 premium/professional matches already loaded, so only 2,632 more calls were needed. Final: 1,000 matches per patch (5,000), all details loaded, 0 failures. The 1,260 excluded-tier details stay in raw but are outside the sample |
+| Parse coverage (Stage 5) | 4,996 of 5,000 (99.9%) parsed. 4 unparsed matches have no objectives or purchase logs: 8039416089 (7.37), 8219464376 (7.38), 9076183783 (7.41), 9080884982 (7.41). Kept and flagged `is_parsed = false`; excluded from objective and purchase metrics only. The two old ones likely have expired replays; the two recent ones may simply not have been parsed yet |
+| Patch agreement (Stage 5) | Every sampled match's own `patch` field agrees with the patch assigned by date window |
+| Rate limits | Response headers report 60 calls per minute and a daily allowance above 2,700. Repeated 429s occurred during the backfill even at one call every 2 seconds; the resumable design allowed it to finish over several runs |
 | Parsing | All 10 sampled (recent) matches have `objectives` and `teamfights`; all players have a non-empty `purchase_log`. Coverage for older matches to be measured in Stage 5 |
 | Objectives | Each event has time, type, key, player_slot and a slot for the victim |
 | Items | Inventory (`item_0`-`item_5`, backpack slots, `item_neutral`) holds item IDs. `items.json` is keyed by internal name and each record has its `id`; `item_ids.json` maps ID to name |
@@ -82,8 +88,8 @@ The `/explorer` endpoint (SQL against OpenDota's database) is deliberately not u
 
 ### Still to check
 1. Recheck the kills relationships and the `kills_log` mismatch once more match data is loaded; identify what caused the extra logged kill in match 982.
-2. Parse coverage (objectives, purchase logs) across the full sample, especially older patches (Stage 5).
-3. Does `/proMatches` paging reach back to 2024-08-01? (Stage 4.)
+2. ~~Parse coverage across the full sample~~ Done (Stage 5): 99.9%, 4 unparsed matches.
+3. ~~Does `/proMatches` paging reach back to 2024-08-01?~~ Done (Stage 4): yes.
 
 ---
 
@@ -118,7 +124,7 @@ Raw layer principles:
 |---|---|
 | `pro_matches` | One row per match per listing call |
 | `match_details` | One row per match detail response |
-| `heroes`, `patches`, `items` | One row per load (whole response as JSON) |
+| `heroes`, `patches`, `items`, `leagues` | One row per load (whole response as JSON) |
 | `match_sample` | One row per sampled match: match ID, patch, sampled at, seed |
 
 ### Staging (views, `stg_opendota__*`)
@@ -215,8 +221,8 @@ Each stage on its own Git branch, merged with a pull request.
 | 1 | Setup (done) |
 | 2 | Project plan (done) |
 | 3 | Explore the API: answer the open checks in section 4 (done) |
-| 4 | Ingestion part 1: reference data (heroes, patches, items) and the full match list since 2024-08-01, with paging, into DuckDB raw |
-| 5 | Ingestion part 2: count matches per patch, draw the sample, fetch match details (rate limiting, retries, resumable); daily collection of new matches |
+| 4 | Ingestion part 1: reference data (heroes, patches, items) and the full match list since 2024-08-01, with paging, into DuckDB raw (done) |
+| 5 | Ingestion part 2: count matches per patch, draw the sample, fetch match details (rate limiting, retries, resumable) (done; daily collection of new matches moved to Stage 11, see D8) |
 | 6 | dbt sources and staging, including JSON unnesting, with tests |
 | 7 | Dimensions |
 | 8 | Facts |
@@ -232,9 +238,10 @@ Each stage on its own Git branch, merged with a pull request.
 | # | Decision | Status |
 |---|---|---|
 | D1 | History window | Patches 56-60 (7.37 to 7.41), i.e. since 2024-08-01 |
-| D2 | Leagues | Premium and professional, with a test for others. `/leagues` dropped: tier comes from each match detail's `league` struct |
+| D2 | Leagues | Revised 2026-11-17: premium and professional only, filtered before sampling with `/leagues` (restored). The earlier decision to drop `/leagues` rested on 100 recent matches, all professional; the loaded sample showed 1,260 of 3,628 in `excluded` leagues. Sample redrawn from eligible matches with the same seed |
 | D3 | Minimum picks for hero win rate and performance | Recommended 20; confirm after counting the sample |
-| D4 | Sample size per patch | Decide after counting matches per patch |
+| D4 | Sample size per patch | 1,000 per patch (5,000 matches) to start; can be increased later |
 | D5 | Dashboard | Decide at Stage 12 |
 | D6 | Where the database lives for scheduled runs | Decide at Stage 11 |
 | D7 | Player SCD Type 2 dimension | Deferred: not needed by the chosen questions |
+| D8 | New matches after the backfill | Deferred to Stage 11: decide whether new matches are added in full (flagged as not sampled) or sampled per patch |
