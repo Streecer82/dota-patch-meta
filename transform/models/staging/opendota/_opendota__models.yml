@@ -30,12 +30,14 @@ models:
         description: Hero's attack type (e.g. Melee or Ranged).
         data_tests:
           - accepted_values:
-              values: ['Melee', 'Ranged']
+              arguments:
+                values: ['Melee', 'Ranged']
       - name: primary_attribute
         description: Hero's primary attribute code
         data_tests:
           - accepted_values:
-              values: ['str', 'agi', 'int', 'all']
+              arguments:
+                values: ['str', 'agi', 'int', 'all']
 
   - name: stg_opendota__items
     description: One row per item, from the latest load of /constants/items.
@@ -73,7 +75,8 @@ models:
         description: League's competition tier, contains null values for untiered leagues
         data_tests:
           - accepted_values:
-              values: ['amateur', 'professional', 'premium', 'excluded']
+              arguments:
+                values: ['amateur', 'professional', 'premium', 'excluded']
 
   - name: stg_opendota__pro_matches
     description: One row per match listed by /proMatches, deduplicated to latest load of each match.
