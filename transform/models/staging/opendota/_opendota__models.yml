@@ -74,3 +74,48 @@ models:
         data_tests:
           - accepted_values:
               values: ['amateur', 'professional', 'premium', 'excluded']
+
+  - name: stg_opendota__pro_matches
+    description: One row per match listed by /proMatches, deduplicated to latest load of each match.
+    columns:
+      - name: match_id
+        description: OpenDota's match ID
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+      - name: is_radiant_win
+        description: True if Radiant won the match, false if Dire won the match
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+        
+  - name: stg_opendota__match_sample
+    description: >
+      One row per sampled match: 1,000 per patch (patches 56-60), premium and
+      professional leagues only, drawn reproducibly with seed 42. Defines which
+      matches are in scope for the marts.
+    columns:
+      - name: match_id
+        description: OpenDota's match ID
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__pro_matches')
+                field: match_id
+      - name: sample_seed
+        description: seed number used to create a random and reusable sample of matches
+      - name: patch_id
+        description: OpenDota's patch ID (e.g. 56 = 7.37).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__patches')
+                field: patch_id
+      - name: patch_name
+        description: OpenDota's patch name (e.g. 7.37).
