@@ -5,3 +5,7 @@ dota_patch_meta:
       type: duckdb
       path: ../data/dota.duckdb
       threads: 4
+      settings:
+        threads: 4
+        memory_limit: 16GB
+        preserve_insertion_order: false
