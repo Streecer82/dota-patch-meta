@@ -166,3 +166,70 @@ models:
                 field: league_id
               config:
                 severity: warn
+  - name: stg_opendota__match_players
+    description: >
+      One row per match ID, player_slot.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - match_id
+              - player_slot
+    columns:
+      - name: match_id
+        description: OpenDota's match ID
+        data_tests:
+          - not_null
+      - name: player_slot
+        description: assigns a number to a player 0 to 4 = Radiant, 128 to 132 = Dire
+        data_tests:
+          - not_null
+      - name: account_id
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: is_radiant
+        data_tests:
+          - not_null
+      - name: hero_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__heroes')
+                field: hero_id
+
+  - name: stg_opendota__match_picks_bans
+    description: >
+      one row per match ID, pick order.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - match_id
+              - pick_ban_order 
+    columns:
+      - name: match_id
+        description: OpenDota's match ID
+        data_tests:
+          - not_null
+      - name: pick_ban_order
+        description: part of composite key; number of pick order.
+        data_tests:
+          - not_null
+      - name: hero_id
+        description: OpenDota's hero ID
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__heroes')
+                field: hero_id
+      - name: side
+        description: radiant or dire, from team_number.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['radiant', 'dire']
