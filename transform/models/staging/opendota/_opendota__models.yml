@@ -166,6 +166,14 @@ models:
                 field: league_id
               config:
                 severity: warn
+      - name: game_mode
+        description: 2 is the captain's mode default competitive, others may impact pick and bans
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 22]
+              config:
+                severity: warn
   - name: stg_opendota__match_players
     description: >
       One row per match ID, player_slot.

@@ -22,7 +22,8 @@ parsed as (
             "radiant_team_id": "BIGINT",
             "dire_team_id": "BIGINT",
             "radiant_name": "VARCHAR",
-            "dire_name": "VARCHAR",  
+            "dire_name": "VARCHAR",
+            "game_mode": "INTEGER",  
             "objectives":    ["JSON"]
         }') as m
     from base
@@ -44,6 +45,7 @@ matches as (
         m.radiant_win as is_radiant_win,
         m.radiant_score as radiant_score,
         m.dire_score as dire_score,
+        m.game_mode as game_mode,
         coalesce(length(m.objectives),0) > 0 as is_parsed,
         loaded_at_utc 
     from parsed
