@@ -119,3 +119,50 @@ models:
                 field: patch_id
       - name: patch_name
         description: OpenDota's patch name (e.g. 7.37).
+      
+  - name: base_opendota__match_details
+    description:  >
+      One row per match: the latest raw /matches response for each match ID.
+      Deduplicates once so every match-detail staging model starts from the same rows.
+    columns:
+      - name: match_id
+        description: OpenDota's match ID
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+      - name: response
+        description: full match details in json format
+
+  - name: stg_opendota__matches
+    description: >
+      One row per match with details loaded. Includes the 1,260 matches outside
+      the sample (from the first draw); join to stg_opendota__match_sample for
+      the in-scope matches.
+    columns:
+      - name: match_id
+        description: OpenDota's match ID
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+      - name: is_parsed
+        description: true for matches with parsed objective data
+        data_tests:
+          - not_null
+      - name: patch_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__patches')
+                field: patch_id
+      - name: league_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__leagues')
+                field: league_id
+              config:
+                severity: warn
