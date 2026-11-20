@@ -244,3 +244,77 @@ models:
           - accepted_values:
               arguments:
                 values: ['radiant', 'dire']
+
+  - name: stg_opendota__player_final_items
+    description: >
+      One row per filled item slot per player per match: the player's inventory
+      when the match ended (main slots, backpack and neutral item). Empty slots
+      are left out. For everything bought during the match, see
+      stg_opendota__player_purchases.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - match_id
+              - player_slot
+              - item_slot
+    columns:
+      - name: match_id
+        description: OpenDota's Match ID
+        data_tests:
+          - not_null
+      - name: item_id
+        description: OpenDota item ID; joins to stg_opendota__items.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__items')
+                field: item_id
+              config:
+                severity: warn
+      - name: player_slot
+        data_tests:
+          - not_null
+      - name: item_slot
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['item_0', 'item_1', 'item_2', 'item_3', 'item_4', 'item_5', 'backpack_0', 'backpack_1', 'backpack_2', 'item_neutral', 'item_neutral_2']
+
+  - name: stg_opendota__player_purchases
+    description: > 
+      One row per match, player, purchase sequence. Shows every item a player
+      purchased in a match in the order they purchased them.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - match_id
+              - player_slot
+              - purchase_seq
+    columns:
+      - name: match_id
+        data_tests:
+          - not_null
+      - name: player_slot
+        data_tests:
+          - not_null
+      - name: item_key
+        description: Internal item name (e.g. blink); joins to stg_opendota__items.item_key
+        data_tests:
+          - not_null
+          - relationships:
+                arguments:
+                  to: ref('stg_opendota__items')
+                  field: item_key
+                config:
+                  severity: warn
+      - name: purchase_seq
+        description: > 
+          Position in the player’s purchase log (1 = first purchase). 
+          Part of the key, because the same item can be bought twice in the same second.
+      - name: purchased_at_seconds
+        description: Seconds from the start of the match; negative = bought before the horn.
+        data_tests:
+          - not_null
