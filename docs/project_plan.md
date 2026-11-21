@@ -83,7 +83,9 @@ The `/explorer` endpoint (SQL against OpenDota's database) is deliberately not u
 | Reference staging (Stage 6) | Heroes: object key always equals the inner `id` (use `id`). Items: `id` unique and never null; 10 entries have no display name, all apparently internal, unreleased or retired (`bottomless_chalice`, `caster_rapier`, `greater_mango`, `horizon`, `mechanical_arm`, `miniboss_minion_summoner`, `super_blink`, 3 recipes); usage checked in Task 6. Leagues: 10,414 in one response; some have a null tier (none of the listed matches are in those leagues) |
 | DuckDB memory (Stage 6) | Unnesting with a lateral join (`from t, unnest(t.response::json[])`) carried the whole leagues response onto each of 10,414 rows and ran out of memory (25 GB). Unnesting in the `select` list fixed it. All match-detail models unnest in the `select` list |
 | Game modes (Stage 6) | Sampled matches by mode: Captains Mode (2) 990 / 941 / 966 / 994 / 966 for 7.37-7.41; All Pick (1) 80 in total; All Draft (22) 63 in total (43 in 7.38). All Pick matches never record picks/bans (all 85 matches without picks/bans are mode 1). All Draft matches have player-nominated bans and 11-12 picks (swaps), so their draft data is not comparable. 30 Captains Mode matches have fewer than 14 bans, mostly 10 picks + 13 bans (likely missed bans when a captain runs out of time) |
-| Match staging (Stage 6) | 6,260 matches with details; `stg_opendota__matches` builds in about 3.5 s with `json_transform` |
+| Match staging (Stage 6) | 6,260 matches with details; `stg_opendota__matches` builds in about 3.5 s with `json_transform`. Every match has exactly 10 players. No player has a null `account_id` |
+| Items in matches (Stage 6) | None of the 10 unnamed items appears in final items or purchases, so null item names can't reach a report. Every purchased `item_key` exists in the current item list. 11 final-item rows (IDs 159, 597, 1807, mostly backpack slots, all in 7.37-7.38 or outside the sample) have IDs missing from the current list: likely retired items. `dim_items` needs an 'Unknown item' fallback (Stage 7) |
+| Staging build (Stage 6) | 13 models (6 views: reference and list models; 7 tables: base and match-detail models) and 72 tests build in about 30 s. Expected warnings only: 10 null item names, 11 unknown final-item IDs |
 | Rate limits | Response headers report 60 calls per minute and a daily allowance above 2,700. Repeated 429s occurred during the backfill even at one call every 2 seconds; the resumable design allowed it to finish over several runs |
 | Parsing | All 10 sampled (recent) matches have `objectives` and `teamfights`; all players have a non-empty `purchase_log`. Coverage for older matches to be measured in Stage 5 |
 | Objectives | Each event has time, type, key, player_slot and a slot for the victim |
@@ -230,7 +232,7 @@ Each stage on its own Git branch, merged with a pull request.
 | 3 | Explore the API: answer the open checks in section 4 (done) |
 | 4 | Ingestion part 1: reference data (heroes, patches, items) and the full match list since 2024-08-01, with paging, into DuckDB raw (done) |
 | 5 | Ingestion part 2: count matches per patch, draw the sample, fetch match details (rate limiting, retries, resumable) (done; daily collection of new matches moved to Stage 11, see D8) |
-| 6 | dbt sources and staging, including JSON unnesting, with tests |
+| 6 | dbt sources and staging, including JSON unnesting, with tests (done) |
 | 7 | Dimensions |
 | 8 | Facts |
 | 9 | Reporting models |
