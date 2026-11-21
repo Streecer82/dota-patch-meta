@@ -1,0 +1,28 @@
+version: 2
+
+sources:
+  - name: opendota
+    description: Raw OpenDota API responses, loaded unchanged by the Python ingestion scripts.
+    schema: raw_opendota
+    tables:
+      - name: heroes
+      - name: patches
+      - name: items
+      - name: leagues
+      - name: pro_matches
+        description: >
+          One row per page of /proMatches (about 100 matches each). Backfilled
+          on 2026-11-12 back to 2024-08-01; the last page also holds a few
+          matches from 2024-07-31 (patch 7.36), which fall outside the patch
+          windows and are ignored. Pages overlap, so the same match can appear
+          more than once: deduplicate on match_id. The sample (match_sample)
+          was drawn from these matches.
+      - name: match_details
+        description: >
+          Full /matches/{match_id} responses, one row per request. Fetched only
+          for sampled matches, but also holds 1,260 matches from an earlier draw
+          that included excluded-tier leagues. Join to match_sample to get
+          the sample; don't assume every row is in the sample.
+      - name: match_sample
+        description: Reproducible sample of 1,000 matches per patch (seed 42), premium and professional leagues only.
+      - name: match_detail_failures

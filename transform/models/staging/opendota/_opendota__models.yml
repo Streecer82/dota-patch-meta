@@ -1,0 +1,352 @@
+version: 2
+
+models:
+  - name: stg_opendota__patches
+    description: One row per patch, from the latest load of /constants/patch.
+    columns:
+      - name: patch_id
+        description: OpenDota's patch ID (e.g. 56 = 7.37).
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+
+  - name: stg_opendota__heroes
+    description: One row per hero, from the latest load of /constants/heroes.
+    columns:
+      - name: hero_id
+        description: OpenDota's hero ID (e.g. 3 = bane).
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+      - name: hero_internal_name
+        description: Game's internal name for the hero (e.g. "npc_dota_hero_bane").
+      - name: hero_name
+        description: Hero's display name (e.g. "Bane").
+        data_tests:
+          - not_null
+      - name: attack_type
+        description: Hero's attack type (e.g. Melee or Ranged).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Melee', 'Ranged']
+      - name: primary_attribute
+        description: Hero's primary attribute code
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['str', 'agi', 'int', 'all']
+
+  - name: stg_opendota__items
+    description: One row per item, from the latest load of /constants/items.
+    columns:
+      - name: item_id
+        description: OpenDota's item ID (e.g. 1 = Blink Dagger).
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+      - name: item_key
+        description: Game's internal name for an item
+        data_tests:
+          - unique
+          - not_null
+      - name: item_name
+        description: Game's display name for the item (A few items have no display name)
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+
+  - name: stg_opendota__leagues
+    description: One row per league, from the latest load of /leagues.
+    columns:
+      - name: league_id
+        description: OpenDota's league ID (e.g. 2 = Wild Cards West).
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+      - name: league_name
+        description: League's display name (e.g. Wild Cards West).
+      - name: league_tier
+        description: League's competition tier, contains null values for untiered leagues
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['amateur', 'professional', 'premium', 'excluded']
+
+  - name: stg_opendota__pro_matches
+    description: One row per match listed by /proMatches, deduplicated to latest load of each match.
+    columns:
+      - name: match_id
+        description: OpenDota's match ID
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+      - name: is_radiant_win
+        description: True if Radiant won the match, false if Dire won the match
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+        
+  - name: stg_opendota__match_sample
+    description: >
+      One row per sampled match: 1,000 per patch (patches 56-60), premium and
+      professional leagues only, drawn reproducibly with seed 42. Defines which
+      matches are in scope for the marts.
+    columns:
+      - name: match_id
+        description: OpenDota's match ID
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__pro_matches')
+                field: match_id
+      - name: sample_seed
+        description: seed number used to create a random and reusable sample of matches
+      - name: patch_id
+        description: OpenDota's patch ID (e.g. 56 = 7.37).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__patches')
+                field: patch_id
+      - name: patch_name
+        description: OpenDota's patch name (e.g. 7.37).
+      
+  - name: base_opendota__match_details
+    description:  >
+      One row per match: the latest raw /matches response for each match ID.
+      Deduplicates once so every match-detail staging model starts from the same rows.
+    columns:
+      - name: match_id
+        description: OpenDota's match ID
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+      - name: response
+        description: full match details in json format
+
+  - name: stg_opendota__matches
+    description: >
+      One row per match with details loaded. Includes the 1,260 matches outside
+      the sample (from the first draw); join to stg_opendota__match_sample for
+      the in-scope matches.
+    columns:
+      - name: match_id
+        description: OpenDota's match ID
+        data_tests:
+          - unique
+          - not_null
+          - dbt_utils.at_least_one
+      - name: is_parsed
+        description: true for matches with parsed objective data
+        data_tests:
+          - not_null
+      - name: patch_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__patches')
+                field: patch_id
+      - name: league_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__leagues')
+                field: league_id
+              config:
+                severity: warn
+      - name: game_mode
+        description: 2 is the captain's mode default competitive, others may impact pick and bans
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 22]
+              config:
+                severity: warn
+  - name: stg_opendota__match_players
+    description: >
+      One row per match ID, player_slot.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - match_id
+              - player_slot
+    columns:
+      - name: match_id
+        description: OpenDota's match ID
+        data_tests:
+          - not_null
+      - name: player_slot
+        description: assigns a number to a player 0 to 4 = Radiant, 128 to 132 = Dire
+        data_tests:
+          - not_null
+      - name: account_id
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: is_radiant
+        data_tests:
+          - not_null
+      - name: hero_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__heroes')
+                field: hero_id
+
+  - name: stg_opendota__match_picks_bans
+    description: >
+      one row per match ID, pick order.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - match_id
+              - pick_ban_order 
+    columns:
+      - name: match_id
+        description: OpenDota's match ID
+        data_tests:
+          - not_null
+      - name: pick_ban_order
+        description: part of composite key; number of pick order.
+        data_tests:
+          - not_null
+      - name: hero_id
+        description: OpenDota's hero ID
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__heroes')
+                field: hero_id
+      - name: side
+        description: radiant or dire, from team_number.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['radiant', 'dire']
+
+  - name: stg_opendota__player_final_items
+    description: >
+      One row per filled item slot per player per match: the player's inventory
+      when the match ended (main slots, backpack and neutral item). Empty slots
+      are left out. For everything bought during the match, see
+      stg_opendota__player_purchases.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - match_id
+              - player_slot
+              - item_slot
+    columns:
+      - name: match_id
+        description: OpenDota's Match ID
+        data_tests:
+          - not_null
+      - name: item_id
+        description: OpenDota item ID; joins to stg_opendota__items.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_opendota__items')
+                field: item_id
+              config:
+                severity: warn
+      - name: player_slot
+        data_tests:
+          - not_null
+      - name: item_slot
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['item_0', 'item_1', 'item_2', 'item_3', 'item_4', 'item_5', 'backpack_0', 'backpack_1', 'backpack_2', 'item_neutral', 'item_neutral_2']
+
+  - name: stg_opendota__player_purchases
+    description: > 
+      One row per match, player, purchase sequence. Shows every item a player
+      purchased in a match in the order they purchased them.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - match_id
+              - player_slot
+              - purchase_seq
+    columns:
+      - name: match_id
+        data_tests:
+          - not_null
+      - name: player_slot
+        data_tests:
+          - not_null
+      - name: item_key
+        description: Internal item name (e.g. blink); joins to stg_opendota__items.item_key
+        data_tests:
+          - not_null
+          - relationships:
+                arguments:
+                  to: ref('stg_opendota__items')
+                  field: item_key
+                config:
+                  severity: warn
+      - name: purchase_seq
+        description: > 
+          Position in the player’s purchase log (1 = first purchase). 
+          Part of the key, because the same item can be bought twice in the same second.
+      - name: purchased_at_seconds
+        description: Seconds from the start of the match; negative = bought before the horn.
+        data_tests:
+          - not_null
+  - name: stg_opendota__match_objectives
+    description: >
+      One row per objective event per match (first blood, buildings, Roshan,
+      etc.), in the order they happened. Only parsed matches have objectives:
+      the 4 unparsed sampled matches have no rows. Includes matches outside
+      the sample.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - match_id
+              - objective_seq
+    columns:
+      - name: match_id
+        description: OpendDota's match ID
+        data_tests:
+          - not_null
+      - name: objective_seq
+        description: Position in a matches objectives (1 = first objective)
+        data_tests:
+          - not_null
+      - name: objective_key
+        description: > 
+          building name like "npc_dota_badguys_tower1_bot" or 
+          player_slot for enemy player like "2"
+      - name: objective_type
+        description: describes what the objective was like "building_kill"
+        data_tests:
+          - not_null
+      - name: event_at_seconds
+        data_tests:
+          - not_null
