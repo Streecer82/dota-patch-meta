@@ -318,3 +318,35 @@ models:
         description: Seconds from the start of the match; negative = bought before the horn.
         data_tests:
           - not_null
+  - name: stg_opendota__match_objectives
+    description: >
+      One row per objective event per match (first blood, buildings, Roshan,
+      etc.), in the order they happened. Only parsed matches have objectives:
+      the 4 unparsed sampled matches have no rows. Includes matches outside
+      the sample.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - match_id
+              - objective_seq
+    columns:
+      - name: match_id
+        description: OpendDota's match ID
+        data_tests:
+          - not_null
+      - name: objective_seq
+        description: Position in a matches objectives (1 = first objective)
+        data_tests:
+          - not_null
+      - name: objective_key
+        description: > 
+          building name like "npc_dota_badguys_tower1_bot" or 
+          player_slot for enemy player like "2"
+      - name: objective_type
+        description: describes what the objective was like "building_kill"
+        data_tests:
+          - not_null
+      - name: event_at_seconds
+        data_tests:
+          - not_null
